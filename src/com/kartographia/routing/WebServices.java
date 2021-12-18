@@ -11,28 +11,16 @@ import java.math.BigDecimal;
 
 public class WebServices extends WebService {
 
-    
-
-  //**************************************************************************
-  //** Constructor
-  //**************************************************************************
-    public WebServices(){
-    }
-
 
   //**************************************************************************
   //** getRoute
   //**************************************************************************
   /** Used to compute an transportation route between 2 points on the earth
-   *  for a given mode of transport (land, sea, air)
    */
     public ServiceResponse getRoute(ServiceRequest request, Database database)
         throws ServletException {
 
       //Parse params
-        String type = request.getParameter("type").toString();
-        if (type==null) type = "GreatCircle"; //vs Shipping
-
         String start = request.getParameter("start").toString();
         if (start==null) return new ServiceResponse(400, "start coordinate is required");
 
@@ -40,10 +28,9 @@ public class WebServices extends WebService {
         if (end==null) return new ServiceResponse(400, "end coordinate is required");
 
         String method = request.getParameter("shippingMethod").toString();
-        if (method==null) method = request.getParameter("method").toString();
-        if (method==null && type.equalsIgnoreCase("Shipping")){
-            return new ServiceResponse(400, "shippingMethod is required");
-        }
+        if (method==null || method.isBlank()) method = request.getParameter("method").toString();
+        if (method==null || method.isBlank()) method = "";
+
 
       //Parse coords
         String[] s = start.split(",");
@@ -62,12 +49,12 @@ public class WebServices extends WebService {
 
       //Get route
         try{
-            JSONObject geoJson = null;
-            if (type.equalsIgnoreCase("Shipping")){
-                geoJson = Routing.getShippingRoute(c1, c2, method);
+            JSONObject geoJson;
+            if (method.isEmpty()){
+                geoJson = Routing.getGreatCircleRoute(c1, c2, 50);
             }
             else{
-                geoJson = Routing.getGreatCircleRoute(c1, c2, 50);
+                geoJson = Routing.getShippingRoute(c1, c2, method);
             }
             return new ServiceResponse(geoJson);
         }
@@ -75,6 +62,4 @@ public class WebServices extends WebService {
             return new ServiceResponse(ex);
         }
     }
-
-
 }
