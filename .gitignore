@@ -1,0 +1,14 @@
+target/
+test/
+nbproject/
+__pycache__/
+
+manifest.mf
+nb-configuration.xml
+build.xml
+
+*.log
+*.DS_Store
+*.dll
+**/test.html*
+**/!README.TXT

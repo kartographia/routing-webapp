@@ -1,0 +1,50 @@
+﻿<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+<title>Routing Demo</title>
+
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimum-scale=1.0, maximum-scale=1.0" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black" />
+
+<!-- OpenLayers -->
+<script src="lib/openlayers/ol.js" type="text/javascript"></script>
+<link href="lib/openlayers/ol.css" rel="stylesheet" type="text/css" />
+<script src="lib/openlayers/ol-popup.js" type="text/javascript"></script>
+<link href="lib/openlayers/ol-popup.css" rel="stylesheet" type="text/css" />
+
+<!-- JavaXT -->
+<script src="lib/javaxt/javaxt.js" type="text/javascript"></script>
+<link href="lib/javaxt/javaxt.css" type="text/css" rel="stylesheet" />
+<script src="lib/javaxt/style.js" type="text/javascript"></script>
+
+<!-- Kartographia -->
+<script src="lib/kartographia/kartographia.js" type="text/javascript"></script>
+
+<!-- Application -->
+<link href="style/main.css" type="text/css" rel="stylesheet" />
+<script src="app/RouteMap.js" type="text/javascript"></script>
+<script src="app/MediaPlayer.js" type="text/javascript"></script>
+
+<!-- Vincenty -->
+<script type="module">
+import LatLon from './lib/geodesy/latlon-ellipsoidal-vincenty.js';
+window.getLatLon = function(lat, lon){
+    return new LatLon(lat, lon);
+};
+</script>
+
+
+<script type="text/javascript">
+//<![CDATA[
+window.onload = function() {
+    javaxt.dhtml.utils.updateDOM();
+    new com.kartographia.RouteMap(document.body);
+};
+
+//]]>
+</script>
+
+</head>
+<body></body>
+</html>
