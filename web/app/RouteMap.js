@@ -19,10 +19,9 @@ com.kartographia.RouteMap = function(parent, config) {
     var currAnimation = {};
     var mapOverlay = null;
 
+    var routingOptions;
 
     var style = javaxt.dhtml.style.default;
-
-
     var lineStyle = new ol.style.Style({
         stroke: new ol.style.Stroke({
             color: '#FF3C38',
@@ -181,6 +180,29 @@ com.kartographia.RouteMap = function(parent, config) {
             });
 
         };
+
+
+        createSpacer(toolbar);
+
+
+        var div = document.createElement("div");
+        div.style.display = "inline-block";
+        div.style.width = "200px";
+        div.style.height = "32px";
+        toolbar.appendChild(div);
+
+        routingOptions = new javaxt.dhtml.ComboBox(div, {
+            style: style.combobox,
+            readOnly: true
+        });
+        routingOptions.add("Great Circle", "");
+        routingOptions.add("Air", "air");
+        routingOptions.add("Sea", "sea");
+        routingOptions.add("Land", "land");
+        routingOptions.setValue("Great Circle");
+        routingOptions.onChange = function(name, value){
+            update();
+        };
     };
 
 
@@ -201,7 +223,7 @@ com.kartographia.RouteMap = function(parent, config) {
             start = start[1] + "," + start[0]; //lat,lon
             end = end[1] + "," + end[0]; //lat,lon
 
-            get("route?start="+start+"&end="+end,{
+            get("route?start="+start+"&end="+end+"&method="+routingOptions.getValue(),{
                 success: function(json){
                     var feature = JSON.parse(json).features[0].geometry;
                     if (feature.type.toLowerCase()==="linestring"){
@@ -381,6 +403,18 @@ com.kartographia.RouteMap = function(parent, config) {
         }
 
         return new javaxt.dhtml.Button(toolbar, btn);
+    };
+
+
+
+  //**************************************************************************
+  //** createSpacer
+  //**************************************************************************
+    var createSpacer = function(toolbar){
+        var spacer = document.createElement('div');
+        spacer.className = "toolbar-spacer";
+        spacer.style.height = "30px";
+        toolbar.appendChild(spacer);
     };
 
 
