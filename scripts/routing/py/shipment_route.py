@@ -461,6 +461,9 @@ def main(
         render (bool) - whether to render an image of the path
     """    
     parent_dir = get_parent_dir()
+    if not os.path.exists(f'{parent_dir}/output'):
+        os.mkdir(f'{parent_dir}/output')
+
     logging.basicConfig(
         filename=f'{parent_dir}/output/messages.log', 
         level=logging.INFO,
