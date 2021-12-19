@@ -5,9 +5,9 @@ com.kartographia.RouteMap = function(parent, config) {
 
     var me = this;
 
-
+    var waitmask;
     var map, mapDiv;
-    var drawingLayer;
+    var drawingLayer, featureLayer;
     var player;
 
 
@@ -22,10 +22,12 @@ com.kartographia.RouteMap = function(parent, config) {
     var routingOptions;
 
     var style = javaxt.dhtml.style.default;
-    var lineStyle = new ol.style.Style({
+
+    var straightLine = new ol.style.Style({
         stroke: new ol.style.Stroke({
-            color: '#FF3C38',
-            width: 1
+            color: '#000000', //3399cc
+            width: 2,
+            lineDash: [.1, 5]
         })
     });
 
@@ -58,6 +60,7 @@ com.kartographia.RouteMap = function(parent, config) {
         td.style.height = "100%";
         tr.appendChild(td);
         createMapPanel(td);
+        waitmask = new javaxt.express.WaitMask(td);
 
 
       //Create footer
@@ -86,6 +89,8 @@ com.kartographia.RouteMap = function(parent, config) {
 
       //Instantiate map
         map = new com.kartographia.Map(parent,{
+            center: [40, -100], //lat, lon (center of the US)
+            zoom: 3, //initial zoom
             style: {
                 info: "mapInfo",
                 coord: "mapCoords"
@@ -93,13 +98,12 @@ com.kartographia.RouteMap = function(parent, config) {
         });
 
 
-        var layers = map.getLayers();
-        for (var i=0; i<layers.length; i++){
-            if (layers[i].get('name')==='drawingLayer'){
-                drawingLayer = layers[i];
-                break;
-            }
-        }
+      //Get layers
+        map.getLayers().forEach((layer)=>{
+            var name = layer.get("name");
+            if (name==="drawingLayer") drawingLayer = layer;
+            if (name==="featureLayer") featureLayer = layer;
+        });
     };
 
 
@@ -158,7 +162,9 @@ com.kartographia.RouteMap = function(parent, config) {
             toggle: true
         });
         drawButton.onClick = function(){
-            map.drawLine(lineStyle, function(){
+            drawingLayer.clear();
+            featureLayer.clear();
+            map.drawLine(straightLine, function(){
                 getRoute();
                 drawButton.toggle();
             });
@@ -201,7 +207,9 @@ com.kartographia.RouteMap = function(parent, config) {
         routingOptions.add("Land", "land");
         routingOptions.setValue("Great Circle");
         routingOptions.onChange = function(name, value){
-            update();
+            console.log("onChange!");
+            featureLayer.clear();
+            getRoute();
         };
     };
 
@@ -210,10 +218,8 @@ com.kartographia.RouteMap = function(parent, config) {
   //** getRoute
   //**************************************************************************
     var getRoute = function(){
-
-        var features = drawingLayer.getFeatures();
-        for (var i=0; i<features.length; i++){
-            var feature = features[i];
+        waitmask.show(500);
+        drawingLayer.getFeatures().forEach((feature)=>{
             var geom = feature.getGeometry().clone().transform('EPSG:3857','EPSG:4326');
             var coords = geom.getCoordinates();
             var start = coords[0];
@@ -225,47 +231,56 @@ com.kartographia.RouteMap = function(parent, config) {
 
             get("route?start="+start+"&end="+end+"&method="+routingOptions.getValue(),{
                 success: function(json){
-                    var feature = JSON.parse(json).features[0].geometry;
-                    if (feature.type.toLowerCase()==="linestring"){
+                    JSON.parse(json).features.forEach((f)=>{
+                        var geometry = f.geometry;
+                        if (geometry.type.toLowerCase()==="linestring"){
 
-                        var coords = [];
-                        var isFirstXPositive = feature.coordinates[0][0]>=0;
-                        var crossesDateLine=null;
-                        for (var i=0; i<feature.coordinates.length; i++){
-                            var coord = feature.coordinates[i];
-                            var x = coord[0];
-                            if (x<0 && isFirstXPositive){
+                            var coords = [];
+                            var isFirstXPositive = geometry.coordinates[0][0]>=0;
+                            var crossesDateLine=null;
+                            for (var i=0; i<geometry.coordinates.length; i++){
+                                var coord = geometry.coordinates[i];
+                                var x = coord[0];
+                                if (x<0 && isFirstXPositive){
 
-                                if (i>0 && crossesDateLine===null){
-                                    crossesDateLine = feature.coordinates[i-1][0]>90;
+                                    if (i>0 && crossesDateLine===null){
+                                        crossesDateLine = geometry.coordinates[i-1][0]>90;
+                                    }
+
+                                    if (crossesDateLine){
+                                        coord[0] = 180 + (180+x);
+                                    }
                                 }
 
-                                if (crossesDateLine){
-                                    coord[0] = 180 + (180+x);
+                                if (x>0 && !isFirstXPositive){
+
+                                    if (i>0 && crossesDateLine===null){
+                                        crossesDateLine = geometry.coordinates[i-1][0]<-90;
+                                    }
+
+                                    if (crossesDateLine){
+                                        coord[0] = -180 - (180-x);
+                                    }
                                 }
+                                coords.push(coord);
                             }
 
-                            if (x>0 && !isFirstXPositive){
-
-                                if (i>0 && crossesDateLine===null){
-                                    crossesDateLine = feature.coordinates[i-1][0]<-90;
-                                }
-
-                                if (crossesDateLine){
-                                    coord[0] = -180 - (180-x);
-                                }
-                            }
-                            coords.push(coord);
+                            var g = new ol.geom.LineString(coords);
+                            g.transform('EPSG:4326', 'EPSG:3857');
+                            featureLayer.addFeature(g);
                         }
-
-                        var g = new ol.geom.LineString(coords);
-                        g.transform('EPSG:4326', 'EPSG:3857');
-                        drawingLayer.addFeature(g);
-                    }
-
+                    });
+                    
+                    map.setExtent(featureLayer.getExtent());  
+                    updateExtents(featureLayer);
+                    waitmask.hide();
+                },
+                failure: function(request){
+                    alert(request);
+                    waitmask.hide();
                 }
             });
-        }
+        });
     };
 
 
@@ -381,6 +396,30 @@ com.kartographia.RouteMap = function(parent, config) {
         return tracks;
     };
 
+  //**************************************************************************
+  //** updateExtents
+  //**************************************************************************
+  /** Adds 2 transparent points to the given map layer. Used to circumvent a
+   *  rendering bug in OpenLayers.
+   */
+    var updateExtents = function(layer){
+        var source = layer.getSource();
+        if (source instanceof ol.source.Vector){
+            var style = new ol.style.Style({
+                fill: new ol.style.Fill({
+                    color: ol.color.asString([0,0,0,0])
+                })
+            });
+            source.addFeature(new ol.Feature({
+                geometry: new ol.geom.Point([-20026376.39, -20048966.10]),
+                style: style
+            }));
+            source.addFeature(new ol.Feature({
+                geometry: new ol.geom.Point([20026376.39, 20048966.10]),
+                style: style
+            }));
+        }
+    };
 
 
 
