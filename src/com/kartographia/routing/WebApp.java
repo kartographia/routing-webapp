@@ -28,7 +28,7 @@ public class WebApp extends HttpServlet {
 
       //Start the server
         int threads = 50;
-        javaxt.http.Server server = new javaxt.http.Server(80, threads, this);
+        javaxt.http.Server server = new javaxt.http.Server(8080, threads, this);
         server.start();
     }
 
