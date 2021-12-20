@@ -17,3 +17,8 @@ cd routing-webapp
 mvn install
 java -jar dist/kartographia-routing.jar
 ```
+
+## Screenshot
+Black dotted line represents straight line between two points. Red line represents great circle path representing 
+the shortest path between the two points on the surface of the earth. 
+![Screenshot](https://user-images.githubusercontent.com/10224874/146758695-fd6be68e-9f4f-4d25-b6f3-2ad35aefa600.png)
