@@ -225,9 +225,17 @@ com.kartographia.RouteMap = function(parent, config) {
             var start = coords[0];
             var end = coords[coords.length-1];
 
-
-            start = start[1] + "," + start[0]; //lat,lon
-            end = end[1] + "," + end[0]; //lat,lon
+            if (routingOptions.getValue()==='') {
+                console.log(routingOptions.getValue());
+                // if the value is empty, we are doing great circle. Lat, lon
+                start = start[1] + "," + start[0];
+                end = end[1] + "," + end[0];
+            } else {
+                console.log(routingOptions.getValue());
+                // if we are specifying a mode, we need to pass Lon, Lat
+                start = start[0] + "," + start[1];
+                end = end[0] + "," + end[1];
+            }
 
             get("route?start="+start+"&end="+end+"&method="+routingOptions.getValue(),{
                 success: function(json){
