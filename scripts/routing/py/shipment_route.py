@@ -25,7 +25,6 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import geopandas as gpd
-import matplotlib.pyplot as plt
 
 from itertools import combinations
 from geopy import distance
@@ -91,7 +90,7 @@ def great_circle(origin, destination):
 
     # calculate distance between points
     g = pyproj.Geod(ellps='WGS84')
-    (az12, az21, dist) = g.inv(start_lon, start_lat, end_lon, end_lat)
+    az12, az21, dist = g.inv(start_lon, start_lat, end_lon, end_lat)
 
     # calculate line string along path with segments <= 10 km
     lonlats = g.npts(start_lon, start_lat, end_lon, end_lat,
@@ -100,6 +99,48 @@ def great_circle(origin, destination):
     # npts doesn't include start/end points, so prepend/append them
     lonlats.insert(0, (start_lon, start_lat))
     lonlats.append((end_lon, end_lat))
+
+    # split across anti meridian
+    geoms = [[]]
+    has_crossed = False
+    for a, b in zip(lonlats[:-1], lonlats[1:]):
+        x0, y0 = a
+        x1, y1 = b
+        if x0 - x1 > 180: # crossing west to east; 179 - (-179) = 358
+            left_pt, right_pt = a, b
+            y_cross = np.interp(
+                x=180, 
+                xp=[left_pt[0], right_pt[0]+180],
+                fp=[left_pt[1], right_pt[1]]
+            )
+            xing_pt_neg = (-180, y_cross)
+            xing_pt_pos = (180, y_cross)
+            geoms[0].append(a)
+            geoms[0].append(xing_pt_pos)
+            geoms.append([]) # create new geom
+            geoms[1].append(xing_pt_neg)
+            has_crossed = True
+        elif x0 - x1 < -180: # crossing east to west; -179 - 179 = -358
+            left_pt, right_pt = b, a
+            y_cross = np.interp(
+                x=180, 
+                xp=[left_pt[0], right_pt[0]+180],
+                fp=[left_pt[1], right_pt[1]]
+            )
+            xing_pt_neg = (-180, y_cross)
+            xing_pt_pos = (180, y_cross)
+            geoms[0].append(a)
+            geoms[0].append(xing_pt_neg)
+            geoms.append([]) # create new geom
+            geoms[1].append(xing_pt_pos)
+            has_crossed = True
+        else:
+            if has_crossed:
+                geoms[1].append(a)
+            else:
+                geoms[0].append(a)
+    geoms[-1].append(lonlats[-1])
+
     return LineString(lonlats)
 
 
@@ -145,6 +186,14 @@ def get_nearest_point(reference_points, input_points):
 
     nearest_points = [tuple(*p) for p in nearest_points]
     return nearest_points
+
+
+def move_to_180(tup):
+    lon, lat = tup
+    if lon < -180:
+        new_lon = lon % 360
+        return (new_lon, lat)
+    return tup
 
 
 # load_or_build_transport_graphs AND HELPERS
@@ -432,15 +481,21 @@ def create_path_gdf(origin, destination, path, G):
     return gdf
 
 
-def draw_path_and_save(path_gdf):
-    parent_dir = get_parent_dir()
-    world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
-    fig, ax = plt.subplots(figsize=(16, 8))
-    base = world.plot(ax=ax, color='gainsboro', edgecolor='grey')
-    path_gdf.plot(ax=ax, column='mode')
-    plt.tight_layout()
-    plt.savefig(f'{parent_dir}/output/path_{int(time.time())}.png')
-    plt.close()
+# get_result_geojson AND HELPERS
+#-------------------------------------------------------------------------------
+def get_result_geojson(path_gdf, outside_normal_bounds: bool):
+    if outside_normal_bounds:
+        path_gdf2 = path_gdf.copy()
+        path_gdf2.geometry = path_gdf2.geometry.translate(-360, 0)
+        path_gdf3 = path_gdf.copy()
+        path_gdf3.geometry = path_gdf3.geometry.translate(360, 0)
+        new_path_gdf = pd.concat([path_gdf, path_gdf2, path_gdf3])
+        geojson = new_path_gdf.to_json()
+    else:    
+        geojson = path_gdf.to_json()
+
+    return geojson
+
 
 
 #-------------------------------------------------------------------------------
@@ -449,7 +504,6 @@ def main(
     destination,
     country_entry_mode=None,
     weight='cost',
-    render_path=False,
 ):
     """
     Inputs:
@@ -458,7 +512,6 @@ def main(
         country_entry_mode (str) - Mode in which shipment reached the 
             destination country
         cost (str) - minimize: cost, distance or time?
-        render (bool) - whether to render an image of the path
     """    
     parent_dir = get_parent_dir()
     if not os.path.exists(f'{parent_dir}/output'):
@@ -470,9 +523,29 @@ def main(
         filemode='a',
     )
     logging.info('-'*50)
+    logging.info(f'origin: {origin}')
+    logging.info(f'destination: {destination}')
+    logging.info(f'country_entry_mode: {country_entry_mode}')
+    logging.info(f'weight: {weight}')
 
     logging.info('Building or loading transport graph...')
     G = load_or_build_transport_graph()
+
+    outside_normal_bounds = False
+    outside_normal_bounds_conds = [
+        origin[0] < -180,
+        destination[0] < -180,
+        origin[0] > 180,
+        destination[0] > 180,
+    ]
+    logging.info(outside_normal_bounds_conds)
+    if any(outside_normal_bounds_conds):
+        outside_normal_bounds = True
+        origin = move_to_180(origin)
+        destination = move_to_180(destination)
+        logging.info('Outside of normal longitudes.')
+        logging.info(f'Shifted origin: {origin}')
+        logging.info(f'Shifted destination: {destination}')
 
     node_origin, node_destination = get_nearest_point(
         reference_points=G.nodes,
@@ -504,11 +577,9 @@ def main(
     
         path_gdf = create_path_gdf(origin, destination, path, G)
 
-        if render_path:
-            draw_path_and_save(path_gdf)
-
-        print(path_gdf.to_json())
-        return path_gdf.to_json()
+        result_geojson = get_result_geojson(path_gdf, outside_normal_bounds)
+        print(result_geojson)
+        return result_geojson
     
     except Exception as e:
         empty = {"type": "FeatureCollection", "features": []}
@@ -540,12 +611,6 @@ if __name__ == '__main__':
         help='To minimize: "cost", "time", or "distance"',
         default='cost',
     )
-    parser.add_argument(
-        '-r',
-        '--render',
-        help='Draw map of path?',
-        action='store_true',
-    )
     args = parser.parse_args()
     
     origin = str_to_tup(args.origin)
@@ -556,5 +621,4 @@ if __name__ == '__main__':
         destination=destination,
         country_entry_mode=args.entrymode,
         weight=args.weight,
-        render_path=args.render,
         )
