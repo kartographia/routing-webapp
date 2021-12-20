@@ -214,12 +214,12 @@ def try_loading_graph(data_dir):
         return G
 
 
-def get_airport_coord_pairs():
+def get_airport_coord_pairs(datadir):
 
     def get_lufthansa_links():
         #   Add Lufthansa connections
         lh1_names = 'RowNr;RD;RA;CD;CA;AL;FNR;SNR;DEP;ARR;STD;DDC;STA;ADC;Mo;Tu;We;Th;Fr;Sa;So;ACtype;ACtypefullname;AG;AGfullname;Start_Op;End_Op'.split(';')
-        lh1 = pd.read_csv(datadir + 'air/airline-cargo-schedules/lh1.csv', 
+        lh1 = pd.read_csv(f'{datadir}/air/airline-cargo-schedules/lh1.csv', 
             skiprows=2, names=lh1_names)
         lh1 = lh1.drop([43084])
         lh1_pairs = set(tuple(sorted(row)) for row in lh1[['DEP', 'ARR']].values)
@@ -240,15 +240,15 @@ def get_airport_coord_pairs():
             'effective_date',
             'discontinue_date',
         ]
-        aa1 = pd.read_csv(datadir + 'air/airline-cargo-schedules/aa1.csv',
+        aa1 = pd.read_csv(f'{datadir}/air/airline-cargo-schedules/aa1.csv',
             names=aa_names, skiprows=6)
         aa1_pairs = set(tuple(sorted(row)) for row in aa1[['origin', 'destination']].dropna().values)
-        aa2 = pd.read_csv(datadir + 'air/airline-cargo-schedules/aa2.csv',
+        aa2 = pd.read_csv(f'{datadir}/air/airline-cargo-schedules/aa2.csv',
             names=aa_names, skiprows=6)
         aa2_pairs = set(tuple(sorted(row)) for row in aa2[['origin', 'destination']].dropna().values)
         return set.union(aa1_pairs, aa2_pairs)
 
-    airports = pd.read_csv(datadir + 'air/airports.csv')
+    airports = pd.read_csv(f'{datadir}/air/airports.csv')
     airports['tup'] = [tuple(row) for row in airports[['lon', 'lat']].values]
     airports = airports.set_index('iata')
 
@@ -342,7 +342,7 @@ def load_or_build_transport_graph():
         G = add_edge(row.geometry, G, transport_mode='rail')
 
     logging.info(f'Adding air connections...')
-    coord_pairs = get_airport_coord_pairs()
+    coord_pairs = get_airport_coord_pairs(data_dir)
     for a, b in coord_pairs:
         if not a or not b:
             continue
@@ -426,8 +426,7 @@ def get_subgraph_edges(G, country_entry_mode, dest_country):
         # One node matches country or other, but not both (XOR)
         is_entering_country = ((G.nodes()[a]['country'] == dest_country)
             != (G.nodes()[b]['country'] == dest_country))
-        # Allow transfers in addition to selected mode (prevents glitches)
-        is_wrong_mode = G[a][b]['mode'] not in ['transfer', country_entry_mode]
+        is_wrong_mode = G[a][b]['mode'] != country_entry_mode
         if is_entering_country and is_wrong_mode:
             continue
         else:
