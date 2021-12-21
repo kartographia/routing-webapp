@@ -204,7 +204,8 @@ com.kartographia.RouteMap = function(parent, config) {
         routingOptions.add("Great Circle", "");
         routingOptions.add("Air", "air");
         routingOptions.add("Sea", "sea");
-        routingOptions.add("Land", "land");
+        routingOptions.add("Rail", "rail");
+        routingOptions.add("Road", "road");
         routingOptions.setValue("Great Circle");
         routingOptions.onChange = function(name, value){
             console.log("onChange!");
